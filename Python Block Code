@@ -472,10 +472,4 @@ lon_var.standard_name = "longitude"
 lon_var.units = "degreesE"
 lon_var[:] = lonData[:,:]
 
-
-#Write history
-histstr=asctime() + ' PISM input file created by Christopher Barrow\n'
-Nc.history=histstr
-
-
 Nc.close()
