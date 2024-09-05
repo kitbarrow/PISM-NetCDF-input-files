@@ -1,0 +1,481 @@
+import rasterio
+import xarray as xr
+import numpy as np
+import numpy as np
+import rasterio
+from rasterio.transform import from_origin
+import netCDF4 as nc
+
+
+
+def create_constant_raster_with_metadata(input_tif_path, output_tif_path, constant_value):
+    # Open the original TIFF file to get metadata
+    with rasterio.open(input_tif_path) as src:
+        # Read metadata
+        metadata = src.meta.copy()
+        transform = src.transform
+        crs = src.crs
+        
+        # Get dimensions and data type
+        width = src.width
+        height = src.height
+        dtype = src.dtypes[0]
+        
+        # Create an array with constant values
+        data = np.full((height, width), constant_value, dtype=dtype)
+        
+        # Update metadata to reflect the data array
+        metadata.update({
+            'dtype': dtype,
+            'count': 1,  # Number of bands
+            'driver': 'GTiff'
+        })
+        
+        # Write the new raster to a GeoTIFF file
+        with rasterio.open(output_tif_path, 'w', **metadata) as dst:
+            dst.write(data, 1)  # Write data to band 1
+            
+            
+def create_lateral_gradient_raster_with_metadata(input_tif_path, output_tif_path, start_value, end_value):
+    #First value is on the left, second is to the right
+    # Open the original TIFF file to get metadata
+    with rasterio.open(input_tif_path) as src:
+        # Read metadata
+        metadata = src.meta.copy()
+        transform = src.transform
+        crs = src.crs
+        
+        # Get dimensions and data type
+        width = src.width
+        height = src.height
+        dtype = src.dtypes[0]
+        
+        # Create an array with lateral gradient values
+        data = np.linspace(start_value, end_value, width, dtype=dtype)
+        data = np.tile(data, (height, 1))  # Repeat the gradient for each row
+        
+        # Update metadata to reflect the data array
+        metadata.update({
+            'dtype': dtype,
+            'count': 1,  # Number of bands
+            'driver': 'GTiff'
+        })
+        
+        # Write the new raster to a GeoTIFF file
+        with rasterio.open(output_tif_path, 'w', **metadata) as dst:
+            dst.write(data, 1)  # Write data to band 1
+
+def create_vertical_gradient_raster_with_metadata(input_tif_path, output_tif_path, start_value, end_value):
+    #Top is first value, bottom is second
+    # Open the original TIFF file to get metadata
+    with rasterio.open(input_tif_path) as src:
+        # Read metadata
+        metadata = src.meta.copy()
+        transform = src.transform
+        crs = src.crs
+        
+        # Get dimensions and data type
+        width = src.width
+        height = src.height
+        dtype = src.dtypes[0]
+        
+        # Create an array with vertical gradient values
+        data = np.linspace(start_value, end_value, height, dtype=dtype)
+        data = np.tile(data[:, None], (1, width))  # Repeat the gradient for each column
+        
+        # Update metadata to reflect the data array
+        metadata.update({
+            'dtype': dtype,
+            'count': 1,  # Number of bands
+            'driver': 'GTiff'
+        })
+        
+        # Write the new raster to a GeoTIFF file
+        with rasterio.open(output_tif_path, 'w', **metadata) as dst:
+            dst.write(data, 1)  # Write data to band 1
+            
+def create_latitude_raster(input_tif_path, output_tif_path):
+    # Open the original TIFF file to get metadata and geographical information
+    with rasterio.open(input_tif_path) as src:
+        # Read metadata
+        metadata = src.meta.copy()
+        transform = src.transform
+        crs = src.crs
+
+        # Get dimensions
+        width = src.width
+        height = src.height
+
+        # Create an empty array to store latitude values
+        latitude_data = np.empty((height, width), dtype=np.float32)
+
+        # Calculate latitude values for each pixel
+        for row in range(height):
+            for col in range(width):
+                lon, lat = transform * (col, row)
+                latitude_data[row, col] = lat
+        
+        # Update metadata to reflect the data array
+        metadata.update({
+            'dtype': 'float32',
+            'count': 1,  # Number of bands
+            'driver': 'GTiff'
+        })
+
+        # Write the new raster to a GeoTIFF file
+        with rasterio.open(output_tif_path, 'w', **metadata) as dst:
+            dst.write(latitude_data, 1)  # Write data to band 1            
+            
+def create_longitude_raster(input_tif_path, output_tif_path):
+    # Open the original TIFF file to get metadata and geographical information
+    with rasterio.open(input_tif_path) as src:
+        # Read metadata
+        metadata = src.meta.copy()
+        transform = src.transform
+        crs = src.crs
+
+        # Get dimensions
+        width = src.width
+        height = src.height
+
+        # Create an empty array to store longitude values
+        longitude_data = np.empty((height, width), dtype=np.float32)
+
+        # Calculate longitude values for each pixel
+        for row in range(height):
+            for col in range(width):
+                lon, lat = transform * (col, row)
+                longitude_data[row, col] = lon
+        
+        # Update metadata to reflect the data array
+        metadata.update({
+            'dtype': 'float32', 
+            'count': 1,  # Number of bands
+            'driver': 'GTiff'
+        })
+
+        # Write the new raster to a GeoTIFF file
+        with rasterio.open(output_tif_path, 'w', **metadata) as dst:
+            dst.write(longitude_data, 1)  # Write data to band 1
+
+def geotiff_to_netcdf(geotiff_path, netcdf_path):
+    # Open the GeoTIFF file
+    with rasterio.open(geotiff_path) as src:
+        # Read the data from the first band
+        data = src.read(1)  # Assuming single-band GeoTIFF, adjust as needed
+        
+        # Get GeoTIFF metadata
+        transform = src.transform
+        crs = src.crs
+        width = src.width
+        height = src.height
+        
+        # Create coordinate arrays
+        x = np.arange(width) * transform[0] + transform[2]
+        y = np.arange(height) * transform[4] + transform[5]
+        y, x = np.meshgrid(y, x, indexing='ij')  # 'ij' indexing for correct coordinate orientation
+
+        # Create an xarray.DataArray
+        data_array = xr.DataArray(
+            data,
+            dims=("y", "x"),
+            coords={"y": y[:, 0], "x": x[0, :]},
+            attrs={
+                "description": "Converted from GeoTIFF",
+                "crs": str(crs),
+            },
+        )
+
+        # Create an xarray.Dataset
+        dataset = xr.Dataset({"band1": data_array})
+        
+        # Write the dataset to a NetCDF file
+        dataset.to_netcdf(netcdf_path)
+    
+
+def print_netcdf_variables(netcdf_path):
+    # Open the NetCDF file
+    dataset = nc.Dataset(netcdf_path)
+    
+    # Print the dataset overview
+    print("Dataset Overview:")
+    print(dataset)
+    
+    # Print each variable with its attributes
+    print("\nVariables and their attributes:")
+    for var_name in dataset.data_vars:
+        variable = dataset[var_name]
+        print(f"Variable: {var_name}")
+        #print(f"Shape: {variable.shape}")
+        #print(f"Dims: {variable.dims}")
+        #print(f"Attributes: {variable.attrs}")
+        #print()
+
+DEM_extent = 'output_hh.tif'
+GeoTIFF_name = 'Thickness.tif'
+constant_value = 0
+netcdf_name = 'Thickness.nc'
+
+create_constant_raster_with_metadata(DEM_extent, GeoTIFF_name, constant_value)
+create_constant_raster_with_metadata(DEM_extent, 'BHF.tif', 0.05)
+create_longitude_raster(DEM_extent, 'Longitude_test.tif')
+create_latitude_raster(DEM_extent, 'Latitude_test.tif')
+create_vertical_gradient_raster_with_metadata(DEM_extent, 'precip_vertical.tif', 71.2, 78.6)
+create_lateral_gradient_raster_with_metadata(DEM_extent, 'air_lateral.tif', 6.8, 9.2)
+geotiff_to_netcdf(GeoTIFF_name, netcdf_name)
+geotiff_to_netcdf(DEM_extent, 'topg.nc')
+geotiff_to_netcdf('BHF.tif', 'BHF.nc')
+geotiff_to_netcdf('precip_vertical.tif', 'precip_vertical.nc')
+geotiff_to_netcdf('Latitude_test.tif', 'Latitude_test.nc')
+geotiff_to_netcdf('Longitude_test.tif', 'Longitude_test.nc')
+geotiff_to_netcdf('air_lateral.tif', 'air_lateral.nc')
+
+
+#ArcGIS guide
+#Find and load DEM on OpenTopography
+#Create rasters of heatflux - default = 0.05
+#Thickness = default = 0
+# Air temp = default to a constant = 8.5 degrees
+#Precipitation = 74.5cm
+
+
+#Read in topography netcdf file
+##Load in NC data file
+t = nc.Dataset('topg.nc', 'r')
+Lat=nc.Dataset('Latitude_test.nc', 'r')
+Lon=nc.Dataset('Longitude_test.nc', 'r')
+BHF=nc.Dataset('BHF.nc', 'r')
+Air=nc.Dataset('air_lateral.nc', 'r')
+Precip=nc.Dataset('precip_vertical.nc', 'r')
+Thk=nc.Dataset('Thickness.nc', 'r')
+
+#other = nc.Dataset('merged_data_full.nc', 'r')
+#Set name for the new file to be saved
+##outname = 'testOutput.nc'
+print(t.variables)
+variable_names = list(t.variables.keys())
+variable_names[0]
+xCells=t.variables['band1'].shape[1]
+yCells=t.variables['band1'].shape[0]
+createFirn=False
+
+#if x and y dont exist in an input file then we need to make them ourselves.
+#I think that for this, the dataset being generated should be in a projection that uses meters, NOT degrees.
+makeXY=False #Switch on x,y creation using True
+if makeXY==True:
+ minX=0
+ maxX=10000
+ minY=-10000
+ maxY=0
+ x = np.linspace(minX, maxX, xCells)
+ #minY and maxY may need swapped if we are in the southern hemisphere
+ y = np.linspace(minY, maxY, yCells)
+else:
+ x=t.variables[variable_names[0]][:].copy()
+ y=t.variables[variable_names[1]][:].copy()
+
+to_Topo=t.variables[list(t.variables.keys())[2]][:,:].copy()
+to_Lat=Lat.variables[list(Lat.variables.keys())[2]][:,:].copy()
+to_Lon=Lon.variables[list(Lon.variables.keys())[2]][:,:].copy()
+to_BHF=BHF.variables[list(BHF.variables.keys())[2]][:,:].copy()
+to_Air=Air.variables[list(Air.variables.keys())[2]][:,:].copy()
+to_Precip=Precip.variables[list(Precip.variables.keys())[2]][:,:].copy()
+to_Thk=Thk.variables[list(Thk.variables.keys())[2]][:,:].copy()
+
+#to_TopoCopy=to_Topo.copy()
+t.close()
+Lat.close()
+Lon.close()
+BHF.close()
+Air.close()
+Precip.close()
+Thk.close()
+
+
+
+
+#set up array to hold topography (topg)
+topoData=np.zeros((yCells,xCells))
+topoData[:,:]=to_Topo[:,:]
+
+#set up arrays
+latData=np.zeros((yCells,xCells))
+latData[:,:]=to_Lat[:,:]
+lonData=np.zeros((yCells,xCells))
+lonData[:,:]=to_Lon[:,:]
+BHFData=np.zeros((yCells,xCells))
+BHFData[:,:]=to_BHF[:,:]
+AirData=np.zeros((yCells,xCells))
+AirData[:,:]=to_Air[:,:]
+
+
+
+#apply a lapse rate of 5 degrees per km elevation from a modern temp at SL of -10 C (263 K)
+degCTempAtSL=-11.0
+KTempAtSL=degCTempAtSL+273.15
+AirData[:,:]=topoData[:,:]*(-0.005)+KTempAtSL
+#a.variables
+#loop through and assign original modern air temperature to all cells at or below SL
+for i in range(0,xCells):
+    for j in range(0,yCells):
+        if topoData[j,i] <= 0:
+            AirData[j,i]=KTempAtSL #to_Air[j,i] #KTempAtSL
+                #possibly make AirData that is a function of LatLong where topo is at or below SL
+
+
+PrecipData=np.zeros((yCells,xCells))
+PrecipData[:,:]=to_Precip[:,:]
+#Don't transfer ice thickness - set it as zero to start modelling from no ice conditions
+thkData=np.zeros((yCells,xCells))
+#thkData[:,:]=to_Thk[:,:]
+
+if createFirn==True:
+ #calculate firn depth
+ #set up blank array
+ FirnDepthData=np.zeros((yCells,xCells))
+ #do an if else to say if above SL, firn depth is X, otherwise its Y
+ #or just try firn depth being 30m constant everywhere to start with.
+ FirnDepthData.fill(30)
+
+
+
+#May need to make this into a netcdf4 file if netcdf3 doesn't work
+
+# Specify the output file name
+outname = 'output.nc'
+
+# Create a new NetCDF file using PISMDataset
+Nc = nc.Dataset(outname, 'w', format='NETCDF4')
+# Create dimensions
+y_dim = Nc.createDimension('y', yCells)  # Replace 'y' with the actual size or None for unlimited dimension
+x_dim = Nc.createDimension('x', xCells)  # Replace 'x' with the actual size or None for unlimited dimension
+
+# If you need a time-dependent dimension, create it separately
+time_dim = Nc.createDimension('time', None)  # None for unlimited dimension
+
+#Need to get in projection information? Or copy over using ncks etc.
+#If there are issues with the lat and lon variables,these may be possible 
+#to create from scratch using lines 71-146 in 'pism_input.py' in the pism-ais folder.
+mapping = Nc.createVariable("mapping",'c')
+mapping.ellipsoid = "WGS84"
+mapping.false_easting = 0.
+mapping.false_northing = 0.
+mapping.grid_mapping_name = "polar_stereographic"
+mapping.latitude_of_projection_origin = -90.
+mapping.standard_parallel = -71.
+mapping.straight_vertical_longitude_from_pole = 0.
+
+#May need to set lon_bounds and lat_bounds? Or long_bnds and lat_bnds as per the pism_input.py in pism-ais.
+
+# Create the 2D variable
+topg_var = Nc.createVariable('topg', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+topg_var.long_name = "bedrock topography"
+topg_var.standard_name = "bedrock_altitude"
+topg_var.units = "meter"
+topg_var.grid_mapping = "mapping"
+topg_var.coordinates = "lon lat"
+topg_var.reference = "Paxman et al. (2019) Palaeo-cubed. Reconstructions of Antarctic topography since the Eocene-Oligocene boundary"
+topg_var[:] = topoData[:,:]
+
+
+# Create the 2D variable
+bheatflx_var = Nc.createVariable('bheatflx', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+bheatflx_var.long_name = "geothermal heat flux - Shapiro & Ritzwoller"
+bheatflx_var.standard_name = "upward_geothermal_heat_flux_at_ground_level"
+bheatflx_var.units = "W m-2"
+bheatflx_var.grid_mapping = "mapping"
+bheatflx_var.coordinates = "lon lat"
+bheatflx_var.reference = "Le Brocq et al (2010) ESSD"
+bheatflx_var[:] = BHFData[:,:]
+
+
+
+if createFirn==True:
+
+    # Create the 2D variable
+    firn_var = Nc.createVariable('firn_depth', 'f4', ('y','x'))
+
+    # Add attributes to the 2D variable 
+    firn_var.long_name = "firn cover depth"
+    firn_var.standard_name = "firn_depth"
+    firn_var.units = "m"
+    firn_var.grid_mapping = "mapping"
+    firn_var.coordinates = "lon lat"
+    firn_var[:] = FirnDepthData[:,:]
+    
+# Create the 2D variable
+air_temp_var = Nc.createVariable('air_temp', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+air_temp_var.long_name = "air temperature"
+air_temp_var.standard_name = "temperature_at_ground_level_in_snow_or_firn"
+air_temp_var.units = "K"
+air_temp_var.grid_mapping = "mapping"
+air_temp_var.coordinates = "lon lat"
+air_temp_var.reference = "Le Brocq et al (2010) ESSD"
+air_temp_var[:] = AirData[:,:]
+
+#Note: Accumulation vs. surface specific mass balance. Units may need converted to m s-1. Or actually, this
+#perhaps should be the land_ice_surface_specific_mass_balance_flux in kg m-2 s-1 
+#(e.g. convert from per year to per second)
+
+
+# Create the 2D variable
+air_temp_var = Nc.createVariable('precipitation', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+air_temp_var.long_name = "accumulation - Van de Berg et al"
+air_temp_var.standard_name = "precipitation_flux"
+air_temp_var.units = "kg m-2 year-1"
+air_temp_var.grid_mapping = "mapping"
+air_temp_var.coordinates = "lon lat"
+air_temp_var.reference = "Le Brocq et al (2010) ESSD"
+air_temp_var[:] = PrecipData[:,:]
+
+
+
+# Create the 2D variable
+thk_var = Nc.createVariable('thk', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+thk_var.long_name = "ice thickness"
+thk_var.standard_name = "land_ice_thickness"
+thk_var.units = "meter"
+thk_var.grid_mapping = "mapping"
+thk_var.coordinates = "lon lat"
+thk_var.reference = "Le Brocq et al (2010) ESSD"
+thk_var[:] = thkData[:,:]
+
+
+
+#lat and lon coordinates must NOT have mapping or coordinate attributes.
+# Create the 2D variable
+lat_var = Nc.createVariable('Latitude', 'f4', ('y','x'))
+# Add attributes to the 2D variable 
+lat_var.long_name = "Latitude"
+lat_var.standard_name = "latitude"
+lat_var.units = "degreesN"
+lat_var[:] = latData[:,:]
+
+
+# Create the 2D variable
+lon_var = Nc.createVariable('Longitude', 'f4', ('y','x'))
+
+# Add attributes to the 2D variable 
+lon_var.long_name = "Longitude"
+lon_var.standard_name = "longitude"
+lon_var.units = "degreesE"
+lon_var[:] = lonData[:,:]
+
+
+#Write history
+histstr=asctime() + ' PISM input file created by Christopher Barrow\n'
+Nc.history=histstr
+
+print(Nc.variables)
+
+Nc.close()
