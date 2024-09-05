@@ -249,7 +249,7 @@ for i in range(num_variables):
     if (raster_type == 1):
         name = input("Enter name of variable (with .tif): ")
         nc_name = name.replace('.tif', '.nc')
-        value = float(input("Enter constant value"))
+        value = float(input("Enter constant value: "))
         create_constant_raster_with_metadata(DEM_extent, name, value)
         geotiff_to_netcdf(name, nc_name)
         list_of_netcdf.append(nc_name)
