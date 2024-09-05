@@ -1,3 +1,5 @@
+#Import the required packages.
+#!pip install may need to be used for any packages which are not installed to the user's machine
 import rasterio
 import xarray as xr
 import numpy as np
@@ -5,9 +7,11 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_origin
 import netCDF4 as nc
+#---------------------------------------------------------------------------------------------------------------------------
 
+#FUNCTION DEFINITION
 
-
+#Define constant raster creation
 def create_constant_raster_with_metadata(input_tif_path, output_tif_path, constant_value):
     # Open the original TIFF file to get metadata
     with rasterio.open(input_tif_path) as src:
@@ -35,7 +39,7 @@ def create_constant_raster_with_metadata(input_tif_path, output_tif_path, consta
         with rasterio.open(output_tif_path, 'w', **metadata) as dst:
             dst.write(data, 1)  # Write data to band 1
             
-            
+#Define a horizontally varying raster            
 def create_lateral_gradient_raster_with_metadata(input_tif_path, output_tif_path, start_value, end_value):
     #First value is on the left, second is to the right
     # Open the original TIFF file to get metadata
@@ -65,6 +69,7 @@ def create_lateral_gradient_raster_with_metadata(input_tif_path, output_tif_path
         with rasterio.open(output_tif_path, 'w', **metadata) as dst:
             dst.write(data, 1)  # Write data to band 1
 
+#Define a vertically varying raster 
 def create_vertical_gradient_raster_with_metadata(input_tif_path, output_tif_path, start_value, end_value):
     #Top is first value, bottom is second
     # Open the original TIFF file to get metadata
@@ -93,7 +98,8 @@ def create_vertical_gradient_raster_with_metadata(input_tif_path, output_tif_pat
         # Write the new raster to a GeoTIFF file
         with rasterio.open(output_tif_path, 'w', **metadata) as dst:
             dst.write(data, 1)  # Write data to band 1
-            
+
+#Function to create a latitude raster
 def create_latitude_raster(input_tif_path, output_tif_path):
     # Open the original TIFF file to get metadata and geographical information
     with rasterio.open(input_tif_path) as src:
@@ -125,7 +131,8 @@ def create_latitude_raster(input_tif_path, output_tif_path):
         # Write the new raster to a GeoTIFF file
         with rasterio.open(output_tif_path, 'w', **metadata) as dst:
             dst.write(latitude_data, 1)  # Write data to band 1            
-            
+
+Function to create a longitude raster
 def create_longitude_raster(input_tif_path, output_tif_path):
     # Open the original TIFF file to get metadata and geographical information
     with rasterio.open(input_tif_path) as src:
@@ -158,6 +165,7 @@ def create_longitude_raster(input_tif_path, output_tif_path):
         with rasterio.open(output_tif_path, 'w', **metadata) as dst:
             dst.write(longitude_data, 1)  # Write data to band 1
 
+#Function converting from raster (.tif file) to NetCDF (.nc)
 def geotiff_to_netcdf(geotiff_path, netcdf_path):
     # Open the GeoTIFF file
     with rasterio.open(geotiff_path) as src:
@@ -193,6 +201,7 @@ def geotiff_to_netcdf(geotiff_path, netcdf_path):
         dataset.to_netcdf(netcdf_path)
     
 
+#Function to print NetCDF variables to evaluate the code's efficacy
 def print_netcdf_variables(netcdf_path):
     # Open the NetCDF file
     dataset = nc.Dataset(netcdf_path)
@@ -210,37 +219,32 @@ def print_netcdf_variables(netcdf_path):
         #print(f"Dims: {variable.dims}")
         #print(f"Attributes: {variable.attrs}")
         #print()
+#---------------------------------------------------------------------------------------------------------------------------
+#FUNCTION USE
 
+#Input DEM
 DEM_extent = 'output_hh.tif'
-GeoTIFF_name = 'Thickness.tif'
-constant_value = 0
-netcdf_name = 'Thickness.nc'
 
-create_constant_raster_with_metadata(DEM_extent, GeoTIFF_name, constant_value)
+
+#Example uses of functions to create rasters and convert to individual NetCDF files
+create_constant_raster_with_metadata(DEM_extent, Thickness.tif, 0)
 create_constant_raster_with_metadata(DEM_extent, 'BHF.tif', 0.05)
 create_longitude_raster(DEM_extent, 'Longitude_test.tif')
 create_latitude_raster(DEM_extent, 'Latitude_test.tif')
 create_vertical_gradient_raster_with_metadata(DEM_extent, 'precip_vertical.tif', 71.2, 78.6)
 create_lateral_gradient_raster_with_metadata(DEM_extent, 'air_lateral.tif', 6.8, 9.2)
-geotiff_to_netcdf(GeoTIFF_name, netcdf_name)
+geotiff_to_netcdf(Thickness.tif, Thickness.nc)
 geotiff_to_netcdf(DEM_extent, 'topg.nc')
 geotiff_to_netcdf('BHF.tif', 'BHF.nc')
 geotiff_to_netcdf('precip_vertical.tif', 'precip_vertical.nc')
 geotiff_to_netcdf('Latitude_test.tif', 'Latitude_test.nc')
 geotiff_to_netcdf('Longitude_test.tif', 'Longitude_test.nc')
 geotiff_to_netcdf('air_lateral.tif', 'air_lateral.nc')
+#---------------------------------------------------------------------------------------------------------------------------
 
+#LOAD IN EACH NETCDF FILE
 
-#ArcGIS guide
-#Find and load DEM on OpenTopography
-#Create rasters of heatflux - default = 0.05
-#Thickness = default = 0
-# Air temp = default to a constant = 8.5 degrees
-#Precipitation = 74.5cm
-
-
-#Read in topography netcdf file
-##Load in NC data file
+##Read each individual NetCDF file to convert to a variable
 t = nc.Dataset('topg.nc', 'r')
 Lat=nc.Dataset('Latitude_test.nc', 'r')
 Lon=nc.Dataset('Longitude_test.nc', 'r')
@@ -249,12 +253,12 @@ Air=nc.Dataset('air_lateral.nc', 'r')
 Precip=nc.Dataset('precip_vertical.nc', 'r')
 Thk=nc.Dataset('Thickness.nc', 'r')
 
+#Example of how to add in a NetCDF file not created with the functions
 #other = nc.Dataset('merged_data_full.nc', 'r')
-#Set name for the new file to be saved
-##outname = 'testOutput.nc'
-print(t.variables)
-variable_names = list(t.variables.keys())
-variable_names[0]
+#---------------------------------------------------------------------------------------------------------------------------
+
+#OUTPUT FILE PREPROCESSING
+
 xCells=t.variables['band1'].shape[1]
 yCells=t.variables['band1'].shape[0]
 createFirn=False
@@ -274,6 +278,7 @@ else:
  x=t.variables[variable_names[0]][:].copy()
  y=t.variables[variable_names[1]][:].copy()
 
+#Extract the data of each of the NetCDF files being made
 to_Topo=t.variables[list(t.variables.keys())[2]][:,:].copy()
 to_Lat=Lat.variables[list(Lat.variables.keys())[2]][:,:].copy()
 to_Lon=Lon.variables[list(Lon.variables.keys())[2]][:,:].copy()
@@ -282,7 +287,7 @@ to_Air=Air.variables[list(Air.variables.keys())[2]][:,:].copy()
 to_Precip=Precip.variables[list(Precip.variables.keys())[2]][:,:].copy()
 to_Thk=Thk.variables[list(Thk.variables.keys())[2]][:,:].copy()
 
-#to_TopoCopy=to_Topo.copy()
+#Close all open files
 t.close()
 Lat.close()
 Lon.close()
@@ -294,11 +299,9 @@ Thk.close()
 
 
 
-#set up array to hold topography (topg)
+#set up arrays to hold all of the individual data
 topoData=np.zeros((yCells,xCells))
 topoData[:,:]=to_Topo[:,:]
-
-#set up arrays
 latData=np.zeros((yCells,xCells))
 latData[:,:]=to_Lat[:,:]
 lonData=np.zeros((yCells,xCells))
@@ -339,12 +342,14 @@ if createFirn==True:
 
 
 
-#May need to make this into a netcdf4 file if netcdf3 doesn't work
+#---------------------------------------------------------------------------------------------------------------------------
+
+#CREATE OUTPUT FILE
 
 # Specify the output file name
 outname = 'output.nc'
 
-# Create a new NetCDF file using PISMDataset
+# Create a new NetCDF file
 Nc = nc.Dataset(outname, 'w', format='NETCDF4')
 # Create dimensions
 y_dim = Nc.createDimension('y', yCells)  # Replace 'y' with the actual size or None for unlimited dimension
@@ -353,9 +358,7 @@ x_dim = Nc.createDimension('x', xCells)  # Replace 'x' with the actual size or N
 # If you need a time-dependent dimension, create it separately
 time_dim = Nc.createDimension('time', None)  # None for unlimited dimension
 
-#Need to get in projection information? Or copy over using ncks etc.
-#If there are issues with the lat and lon variables,these may be possible 
-#to create from scratch using lines 71-146 in 'pism_input.py' in the pism-ais folder.
+#Create mapping variable
 mapping = Nc.createVariable("mapping",'c')
 mapping.ellipsoid = "WGS84"
 mapping.false_easting = 0.
@@ -365,9 +368,7 @@ mapping.latitude_of_projection_origin = -90.
 mapping.standard_parallel = -71.
 mapping.straight_vertical_longitude_from_pole = 0.
 
-#May need to set lon_bounds and lat_bounds? Or long_bnds and lat_bnds as per the pism_input.py in pism-ais.
-
-# Create the 2D variable
+# Create a 2D variable
 topg_var = Nc.createVariable('topg', 'f4', ('y','x'))
 
 # Add attributes to the 2D variable 
@@ -476,6 +477,5 @@ lon_var[:] = lonData[:,:]
 histstr=asctime() + ' PISM input file created by Christopher Barrow\n'
 Nc.history=histstr
 
-print(Nc.variables)
 
 Nc.close()
